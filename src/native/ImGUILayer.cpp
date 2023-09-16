@@ -1,3 +1,4 @@
+#include <core/Timer.hpp>
 #include <native/ImGUILayer.hpp>
 
 #include <array>
@@ -18,6 +19,7 @@ namespace
     constexpr const char * async_default = "retro+";
 
     int sleep_duration = 500;
+    bool track_timer = false;
     bool apply_lock_guard = false;
 
     mutex::winmutex async_mutex;
@@ -44,7 +46,7 @@ namespace
         std::this_thread::sleep_for(std::chrono::milliseconds(sleep_duration));
 
         std::cerr << "Append!" << std::endl;
-        async_test += std::to_string(append);
+        async_test += std::to_string(append) + "-";
 
         if (local_apply_guard)
         {
@@ -132,6 +134,10 @@ void ImGUILayer::Render()
     const auto& io = ImGui::GetIO();
 
     ImGui::Begin("Threads");
+
+    const auto exec_time = m_all_threads_run_timer.Tick<std::chrono::microseconds>() / 1000.0;
+
+    ImGui::Text("Execution time: %f", exec_time.count());
     ImGui::SliderInt("Sleep duration: ", &sleep_duration, 100, 2000);
 
     ImGui::Text("Not so atomic string: %s", async_test.c_str());
@@ -148,8 +154,11 @@ void ImGUILayer::Render()
         m_threads.emplace_back(async_invoke_func, m_threads.size());
     }
 
+    bool all_finished = true;
     for (int32_t i = 0; i < m_threads.size(); i++)
     {
+        all_finished &= m_threads.at(i).is_finished();
+
         ImGui::PushID(&m_threads.at(i));
 
         ImGui::Text("Thread %d", i);
@@ -212,8 +221,16 @@ void ImGUILayer::Render()
         ImGui::NewLine();
     }
 
+    if (all_finished && track_timer)
+    {
+        track_timer = false;
+        m_all_threads_run_timer.Stop();
+    }
+
     if (ImGui::Button("Run all"))
     {
+        track_timer = true;
+        m_all_threads_run_timer.Run();
         std::for_each(m_threads.begin(), m_threads.end(), [](auto& thread) { thread.run(); });
     }
     ImGui::SameLine();

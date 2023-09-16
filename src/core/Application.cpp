@@ -1,3 +1,4 @@
+#include <core/Timer.hpp>
 #include <core/Application.hpp>
 
 #include <chrono>
@@ -8,12 +9,14 @@ Application::~Application()
 {
     for (const auto& [key, layer] : m_layers)
     {
-        layer->OnDetach();
+        RemoveLayer(key);
     }
 }
 
 int Application::Run()
 {
+    core::ScopeTimer exec_timer("Program execution time");
+
     Layer::ts duration = 0.0F;
 
     while (m_is_running)

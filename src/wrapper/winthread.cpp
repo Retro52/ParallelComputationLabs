@@ -86,16 +86,6 @@ void winthread::join()
     }
 }
 
-DWORD WINAPI winthread::thread_function(LPVOID lpParam)
-{
-    auto * pThis = static_cast<winthread *>(lpParam);
-    pThis->m_invoke();
-
-    pThis->m_is_running = false;
-    pThis->m_is_finished = true;
-    return 0;
-}
-
 void winthread::pause()
 {
     if (m_is_running)
@@ -175,4 +165,14 @@ void winthread::set_priority(priority priority)
 [[nodiscard]] bool winthread::is_finished() const
 {
     return m_is_finished;
+}
+
+DWORD WINAPI winthread::thread_function(LPVOID lpParam)
+{
+    auto * pThis = static_cast<winthread *>(lpParam);
+    pThis->m_invoke();
+
+    pThis->m_is_running = false;
+    pThis->m_is_finished = true;
+    return 0;
 }

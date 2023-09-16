@@ -1,6 +1,7 @@
 #pragma once
 
 #include <core/Layer.hpp>
+#include <core/Timer.hpp>
 #include <graphics/Window.hpp>
 
 #include <memory>
@@ -27,6 +28,8 @@ namespace retro
         void Render();
 
     protected:
+
+        core::Timer m_all_threads_run_timer;
 
         std::vector<thread::winthread> m_threads;
 
