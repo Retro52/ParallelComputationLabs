@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.15)
+cmake_minimum_required(VERSION 3.10)
 project(WinAPIThreads)
 
 set(CMAKE_CXX_STANDARD 20)
@@ -31,8 +31,6 @@ list(APPEND PROJECT_DEPENDENCIES SDL2-static)
 
 list(APPEND PROJECT_LINK_LIBS d3d11.lib)
 list(APPEND PROJECT_LINK_LIBS ${PROJECT_DEPENDENCIES})
-
-message(STATUS "Sources: ${PROJECT_SOURCES}")
 
 add_executable(${PROJECT_NAME} ${PROJECT_SOURCES})
 add_dependencies(${PROJECT_NAME} ${PROJECT_DEPENDENCIES})

@@ -88,10 +88,32 @@ void ImGUILayer::OnAttach()
 
     ImGui_ImplSDL2_InitForD3D(m_window->GetWindowHandler());
     ImGui_ImplDX11_Init(m_window->GetDirectXDevice(), m_window->GetDirectXDeviceContext());
+
+    // Setting up a color scheme (feel free to customize these colors)
+    style.WindowPadding = ImVec2(15, 15);
+    style.WindowRounding = 5.0f;
+    style.FramePadding = ImVec2(5, 5);
+    style.FrameRounding = 4.0f;
+    style.ItemSpacing = ImVec2(12, 8);
+    style.ItemInnerSpacing = ImVec2(8, 6);
+    style.IndentSpacing = 25.0f;
+    style.ScrollbarSize = 15.0f;
+    style.ScrollbarRounding = 9.0f;
+    style.GrabMinSize = 5.0f;
+    style.GrabRounding = 3.0f;
+
+    ImVec4* colors = style.Colors;
+    colors[ImGuiCol_WindowBg] = ImVec4(0.09f, 0.09f, 0.09f, 0.94f);
+    colors[ImGuiCol_Header] = ImVec4(0.28f, 0.28f, 0.28f, 0.75f);
+    colors[ImGuiCol_HeaderHovered] = ImVec4(0.28f, 0.28f, 0.28f, 0.80f);
+    colors[ImGuiCol_HeaderActive] = ImVec4(0.28f, 0.28f, 0.28f, 1.00f);
+    colors[ImGuiCol_Text] = ImVec4(0.86f, 0.93f, 0.89f, 0.78f);
+    colors[ImGuiCol_TextDisabled] = ImVec4(0.86f, 0.93f, 0.89f, 0.28f);
 }
 
 bool ImGUILayer::OnUpdate(ts delta)
 {
+    const auto& io = ImGui::GetIO();
     m_window->PollEvents();
 
     ImGui_ImplDX11_NewFrame();
@@ -108,6 +130,23 @@ bool ImGUILayer::OnUpdate(ts delta)
     {
         std::cerr << "Error! Exception details: " << e.what() << std::endl;
     }
+
+    ImGui::Render();
+    const float clear_color_with_alpha[4] = { 0.0F, 0.0F, 0.0F, 0.0F };
+
+    auto target_view = m_window->GetDirectXRenderTargetView();
+    m_window->GetDirectXDeviceContext()->OMSetRenderTargets(1, &target_view, nullptr);
+    m_window->GetDirectXDeviceContext()->ClearRenderTargetView(m_window->GetDirectXRenderTargetView(), clear_color_with_alpha);
+    ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
+
+    // Update and Render additional Platform Windows
+    if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable)
+    {
+        ImGui::UpdatePlatformWindows();
+        ImGui::RenderPlatformWindowsDefault();
+    }
+
+    m_window->GetDirectXSwapChain()->Present(1, 0);
 
     return true;
 }
@@ -131,25 +170,22 @@ bool ImGUILayer::OnEvent(const core::Event &event)
 
 void ImGUILayer::Render()
 {
-    const auto& io = ImGui::GetIO();
+    static std::vector<double> exec_time_history;
 
     ImGui::Begin("Threads");
 
-    const auto exec_time = m_all_threads_run_timer.Tick<std::chrono::microseconds>() / 1000.0;
-
-    ImGui::Text("Execution time: %f", exec_time.count());
     ImGui::SliderInt("Sleep duration: ", &sleep_duration, 100, 2000);
 
-    ImGui::Text("Not so atomic string: %s", async_test.c_str());
+    ImGui::TextColored({ 1.0F, 0.5F, 0.5F, 1.0F }, "Not so atomic string: %s", async_test.c_str());
 
-    if (ImGui::Button("Reset"))
+    if (ImGui::Button("Reset string to default"))
     {
         async_test = async_default;
     }
 
     ImGui::Checkbox("Wrap resource in mutex?", &apply_lock_guard);
 
-    if (ImGui::Button("+"))
+    if (ImGui::Button("Add new thread"))
     {
         m_threads.emplace_back(async_invoke_func, m_threads.size());
     }
@@ -197,6 +233,9 @@ void ImGUILayer::Render()
         if (ImGui::Button("Remove"))
         {
             m_threads.erase(m_threads.cbegin() + i);
+
+            ImGui::PopID();
+            break;
         }
         ImGui::SameLine();
 
@@ -225,49 +264,58 @@ void ImGUILayer::Render()
     {
         track_timer = false;
         m_all_threads_run_timer.Stop();
+
+        exec_time_history.push_back((m_all_threads_run_timer.Tick<std::chrono::microseconds>() / 1000.0).count());
     }
 
-    if (ImGui::Button("Run all"))
+    if (!m_threads.empty())
     {
-        track_timer = true;
-        m_all_threads_run_timer.Run();
-        std::for_each(m_threads.begin(), m_threads.end(), [](auto& thread) { thread.run(); });
-    }
-    ImGui::SameLine();
+        if (ImGui::Button("Run all"))
+        {
+            track_timer = true;
+            m_all_threads_run_timer.Run();
+            std::for_each(m_threads.begin(), m_threads.end(), [](auto& thread) { thread.run(); });
+        }
+        ImGui::SameLine();
 
-    if (ImGui::Button("Pause all"))
-    {
-        std::for_each(m_threads.begin(), m_threads.end(), [](auto& thread) { thread.pause(); });
-    }
-    ImGui::SameLine();
+        if (ImGui::Button("Pause all"))
+        {
+            std::for_each(m_threads.begin(), m_threads.end(), [](auto& thread) { thread.pause(); });
+        }
+        ImGui::SameLine();
 
-    if (ImGui::Button("Resume all"))
-    {
-        std::for_each(m_threads.begin(), m_threads.end(), [](auto& thread) { thread.resume(); });
-    }
-    ImGui::SameLine();
+        if (ImGui::Button("Resume all"))
+        {
+            std::for_each(m_threads.begin(), m_threads.end(), [](auto& thread) { thread.resume(); });
+        }
+        ImGui::SameLine();
 
-    if (ImGui::Button("Terminate all"))
+        if (ImGui::Button("Terminate all"))
+        {
+            std::for_each(m_threads.begin(), m_threads.end(), [](auto& thread) { thread.terminate(); });
+        }
+    }
+
+    const auto exec_time = m_all_threads_run_timer.Tick<std::chrono::microseconds>() / 1000.0;
+
+    ImGui::Text("Execution time: %f", exec_time.count());
+
+    if (!exec_time_history.empty())
     {
-        std::for_each(m_threads.begin(), m_threads.end(), [](auto& thread) { thread.terminate(); });
+        if (ImGui::CollapsingHeader("Runtime history"))
+        {
+            const ImVec4 text_color = { 1.0F, 0.5F, 0.5F, 1.0F };
+            for (const auto& time : exec_time_history)
+            {
+                ImGui::TextColored(text_color, "Exec time: %f", time);
+            }
+
+            if (ImGui::Button("Clear"))
+            {
+                exec_time_history.clear();
+            }
+        }
     }
 
     ImGui::End();
-
-    ImGui::Render();
-    const float clear_color_with_alpha[4] = { 0.0F, 0.0F, 0.0F, 0.0F };
-
-    auto target_view = m_window->GetDirectXRenderTargetView();
-    m_window->GetDirectXDeviceContext()->OMSetRenderTargets(1, &target_view, nullptr);
-    m_window->GetDirectXDeviceContext()->ClearRenderTargetView(m_window->GetDirectXRenderTargetView(), clear_color_with_alpha);
-    ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
-
-    // Update and Render additional Platform Windows
-    if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable)
-    {
-        ImGui::UpdatePlatformWindows();
-        ImGui::RenderPlatformWindowsDefault();
-    }
-
-    m_window->GetDirectXSwapChain()->Present(1, 0);
 }
