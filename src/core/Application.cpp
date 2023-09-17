@@ -7,9 +7,10 @@ using namespace retro::core;
 
 Application::~Application()
 {
-    for (const auto& [key, layer] : m_layers)
+    for (auto it = m_layers.begin(); it != m_layers.end();)
     {
-        RemoveLayer(key);
+        RemoveLayer(it->first);
+        it = m_layers.begin();
     }
 }
 

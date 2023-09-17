@@ -37,7 +37,6 @@ winthread::~winthread()
 
     if (m_hThread != nullptr)
     {
-        WaitForSingleObject(m_hThread, INFINITE);
         CloseHandle(m_hThread);
     }
 }
@@ -57,9 +56,6 @@ void winthread::run()
         {
             throw std::runtime_error("Error: the thread could not be created");
         }
-
-        m_is_running = true;
-        m_is_finished = false;
     }
     else
     {
@@ -170,6 +166,10 @@ void winthread::set_priority(priority priority)
 DWORD WINAPI winthread::thread_function(LPVOID lpParam)
 {
     auto * pThis = static_cast<winthread *>(lpParam);
+
+    pThis->m_is_running = true;
+    pThis->m_is_finished = false;
+
     pThis->m_invoke();
 
     pThis->m_is_running = false;
