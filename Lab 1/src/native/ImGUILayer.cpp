@@ -2,7 +2,6 @@
 #include <native/ImGUILayer.hpp>
 
 #include <array>
-#include <atomic>
 #include <iostream>
 #include <algorithm>
 
@@ -241,7 +240,7 @@ void ImGUILayer::Render()
 
         ImGui::SetNextItemWidth(250.0F);
         auto cur_priority = static_cast<int>(m_threads.at(i).get_priority());
-        if (ImGui::Combo("Priority", &cur_priority, priority_names.data(), priority_names.size()))
+        if (ImGui::Combo("Priority", &cur_priority, priority_names.data(), static_cast<int>(priority_names.size())))
         {
             m_threads.at(i).set_priority(static_cast<retro::thread::priority>(cur_priority));
         }

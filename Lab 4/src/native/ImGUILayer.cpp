@@ -22,7 +22,8 @@ namespace
     std::vector<ValueType> Solve(MatrixType matrix)
     {
         ValueType tmp;
-        int n = matrix.size();
+        int n = static_cast<int>(matrix.size());
+
         std::vector<ValueType> xx(n, 0.0);
 
         for (int i = 0; i < n; i++)
@@ -274,6 +275,9 @@ void ImGUILayer::Render()
     static MatrixType matrix;
     static MatrixType result (1);
 
+    using HistoryEntry = std::pair<int, double>;
+    static std::vector<HistoryEntry> execution_time_history;
+
     ImGui::Begin("Gauss method");
     start_time = omp_get_wtime();
 
@@ -302,6 +306,8 @@ void ImGUILayer::Render()
                     const auto execution_start = omp_get_wtime();
                     result[0] = Solve(matrix);
                     execution_time = omp_get_wtime() - execution_start;
+
+                    execution_time_history.emplace_back(threads, execution_time);
                 });
     }
 
@@ -316,6 +322,58 @@ void ImGUILayer::Render()
     ImGui::Text("Timer precision %lf\n", tick);
     ImGui::Text("Execution time parallel, ms %lf\n", execution_time * 1000.0);
     ImGui::Text("Render time (including operations), in ms %lf\n", (end_time - start_time) * 1000.0);
+
+    if (DrawButtonConditionally("Clear history", execution_time_history.empty(), "History is already as clean as my browser`s one"))
+    {
+        execution_time_history.clear();
+    }
+
+    if (!execution_time_history.empty())
+    {
+        if (ImGui::BeginTable("Execution Time Table", 2, ImGuiTableFlags_Sortable | ImGuiTableFlags_SizingFixedSame))
+        {
+            // Table headers
+            ImGui::TableSetupColumn("Number of Threads", ImGuiTableColumnFlags_NoSort);
+            ImGui::TableSetupColumn("Execution Time (ms)", ImGuiTableColumnFlags_DefaultSort);
+            ImGui::TableHeadersRow();
+
+            // Sort our data if the user clicked on one of the headers
+            if (ImGuiTableSortSpecs* sortsSpecs = ImGui::TableGetSortSpecs())
+            {
+                if (sortsSpecs->SpecsDirty)
+                {
+                    std::stable_sort(execution_time_history.begin(), execution_time_history.end(), [&sortsSpecs](const HistoryEntry& lhs, const HistoryEntry& rhs)
+                    {
+                        for (int n = 0; n < sortsSpecs->SpecsCount; n++)
+                        {
+                            const ImGuiTableColumnSortSpecs* sortSpec = &sortsSpecs->Specs[n];
+                            if (sortSpec->ColumnIndex == 1) // Execution Time column
+                            {
+                                bool result = lhs.second < rhs.second;
+                                return sortSpec->SortDirection == ImGuiSortDirection_Ascending == result;
+                            }
+                        }
+                        return false;
+                    });
+
+                    sortsSpecs->SpecsDirty = false;
+                }
+            }
+
+            // Populate rows
+            for (const auto& entry : execution_time_history)
+            {
+                ImGui::TableNextRow();
+                ImGui::TableSetColumnIndex(0);
+                ImGui::Text("%d", entry.first); // Number of threads
+
+                ImGui::TableSetColumnIndex(1);
+                ImGui::Text("%.2f ms", entry.second * 1000.0); // Execution time in milliseconds
+            }
+
+            ImGui::EndTable();
+        }
+    }
 
     ImGui::End();
 }
