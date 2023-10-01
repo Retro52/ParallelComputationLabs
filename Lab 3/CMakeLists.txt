@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.10)
 
-project("Lab-2-OMP-Parallel-computations")
+project("Lab-3-OMP-Parallel-integration")
 
 file(GLOB_RECURSE PROJECT_SOURCES_SRC ${PROJECT_SOURCE_DIR}/src/*.[ch]*)
 file(GLOB_RECURSE PROJECT_SOURCES_INCLUDE ${PROJECT_SOURCE_DIR}/include/*.[ch]*)

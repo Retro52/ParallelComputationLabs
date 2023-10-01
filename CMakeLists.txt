@@ -10,3 +10,5 @@ add_subdirectory(${CMAKE_SOURCE_DIR}/extern/SDL2)
 
 add_subdirectory("${CMAKE_SOURCE_DIR}/Lab 1")
 add_subdirectory("${CMAKE_SOURCE_DIR}/Lab 2")
+add_subdirectory("${CMAKE_SOURCE_DIR}/Lab 3")
+add_subdirectory("${CMAKE_SOURCE_DIR}/Lab 4")
