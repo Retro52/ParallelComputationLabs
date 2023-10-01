@@ -25,6 +25,8 @@ namespace
             case priority::high:
                 return THREAD_PRIORITY_HIGHEST;
         }
+
+        return THREAD_PRIORITY_HIGHEST;
     }
 }
 
