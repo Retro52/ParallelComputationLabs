@@ -5,8 +5,7 @@ set(CMAKE_CXX_STANDARD 20)
 
 project(rlib LANGUAGES C CXX VERSION 1.0.0)
 
-include(../cmake/Utils.cmake)
-include(CMakePackageConfigHelpers)
+include(Utils)
 
 option(RLIB_BUILD_CORE "Build rlib core" ON)
 option(RLIB_BUILD_GRAPHICS "Build rlib graphics" ON)

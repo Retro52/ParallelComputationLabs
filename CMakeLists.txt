@@ -5,8 +5,12 @@ project(ParallelComputationLabs C CXX)
 set(CMAKE_C_STANDARD 99)
 set(CMAKE_CXX_STANDARD 20)
 
+# SDL setup to disable these annoying tests & unused shared lib
 set(SDL_TEST_ENABLED_BY_DEFAULT OFF)
+set(SDL_SHARED_ENABLED_BY_DEFAULT OFF)
+
 set(SDL2_PATH "${CMAKE_SOURCE_DIR}/extern/SDL2")
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
 
 add_subdirectory(${SDL2_PATH})
 
