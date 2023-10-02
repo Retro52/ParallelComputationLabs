@@ -1,5 +1,5 @@
-#include <core/Application.hpp>
-#include <native/ImGUILayer.hpp>
+#include <ImGUILayer.hpp>
+#include <core/include/Application.hpp>
 
 using namespace retro;
 
