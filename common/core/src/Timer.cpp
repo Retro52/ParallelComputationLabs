@@ -1,4 +1,4 @@
-#include <core/Timer.hpp>
+#include <Timer.hpp>
 
 #include <sstream>
 #include <utility>

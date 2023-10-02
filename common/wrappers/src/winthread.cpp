@@ -1,4 +1,4 @@
-#include <wrapper/winthread.hpp>
+#include <winthread.hpp>
 
 #include <stdexcept>
 

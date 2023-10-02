@@ -1,7 +1,7 @@
 #pragma once
 
 #include <string>
-#include <core/Event.hpp>
+#include "Event.hpp"
 
 namespace retro::core
 {

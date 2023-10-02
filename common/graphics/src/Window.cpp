@@ -1,12 +1,9 @@
-#include <core/Event.hpp>
-#include <graphics/Window.hpp>
+#include <Window.hpp>
 
 #include <tchar.h>
 
 #include <stdexcept>
 #include <SDL_syswm.h>
-
-#include <backends/imgui_impl_sdl2.h>
 
 using namespace retro::graphics;
 
@@ -44,12 +41,14 @@ Window::~Window()
     Close();
 }
 
-void Window::PollEvents()
+std::vector<SDL_Event> Window::PollEvents()
 {
     SDL_Event event;
+    std::vector<SDL_Event> events;
+
     while (SDL_PollEvent(&event))
     {
-        core::EventsPoll::AddEvent(event);
+        events.emplace_back(event);
 
         if (event.type == SDL_WINDOWEVENT
             && event.window.event == SDL_WINDOWEVENT_RESIZED
@@ -60,6 +59,8 @@ void Window::PollEvents()
             CreateRenderTarget();
         }
     }
+
+    return events;
 }
 
 void Window::Close()

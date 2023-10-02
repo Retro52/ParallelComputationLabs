@@ -1,12 +1,12 @@
 #pragma once
 
-#include <core/Layer.hpp>
-#include <core/Timer.hpp>
-#include <graphics/Window.hpp>
+#include <core/include/Layer.hpp>
+#include <core/include/Timer.hpp>
+#include <graphics/include/Window.hpp>
 
 #include <memory>
-#include <wrapper/winmutex.hpp>
-#include <wrapper/winthread.hpp>
+#include <wrappers/include/winmutex.hpp>
+#include <wrappers/include/winthread.hpp>
 
 namespace retro
 {

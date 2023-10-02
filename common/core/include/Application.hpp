@@ -1,12 +1,12 @@
 #pragma once
 
-#include <core/Layer.hpp>
-
 #include <memory>
 #include <unordered_map>
 
 namespace retro::core
 {
+    class Layer;
+
     class Application
     {
     public:

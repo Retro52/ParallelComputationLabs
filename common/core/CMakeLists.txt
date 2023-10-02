@@ -1,0 +1,19 @@
+project(core C CXX)
+
+collect_source_files_recursively("${PROJECT_SOURCE_DIR}" "CORE_SOURCES")
+
+if (NOT SDL2_TARGET OR NOT SDL2_INCLUDE_DIRS)
+    message(FATAL_ERROR "SDL2 not found: either SDL2_TARGET or SDL2_INCLUDE_DIRS is missing")
+endif ()
+
+list(APPEND CORE_INCLUDES ${SDL2_INCLUDE_DIRS})
+list(APPEND CORE_INCLUDES ${PROJECT_SOURCE_DIR}/include)
+
+list(APPEND CORE_LINK_LIBS ${SDL2_TARGET})
+list(APPEND CORE_DEPENDENCIES ${SDL2_TARGET})
+
+add_library(${PROJECT_NAME} STATIC ${CORE_SOURCES})
+add_dependencies(${PROJECT_NAME} ${CORE_DEPENDENCIES})
+
+target_link_libraries(${PROJECT_NAME} PUBLIC ${CORE_LINK_LIBS})
+target_include_directories(${PROJECT_NAME} PUBLIC ${CORE_INCLUDES})

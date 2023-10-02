@@ -1,6 +1,7 @@
 #pragma once
 
 #include <string>
+#include <vector>
 
 #include <SDL.h>
 #include <d3d11.h>
@@ -17,7 +18,7 @@ namespace retro::graphics
 
         ~Window();
 
-        void PollEvents();
+        [[nodiscard]] std::vector<SDL_Event> PollEvents();
 
         void Close();
 

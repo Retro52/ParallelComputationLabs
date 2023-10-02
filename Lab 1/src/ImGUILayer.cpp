@@ -1,5 +1,5 @@
-#include <core/Timer.hpp>
-#include <native/ImGUILayer.hpp>
+#include <ImGUILayer.hpp>
+#include <core/include/Timer.hpp>
 
 #include <array>
 #include <iostream>
@@ -113,7 +113,10 @@ void ImGUILayer::OnAttach()
 bool ImGUILayer::OnUpdate(ts delta)
 {
     const auto& io = ImGui::GetIO();
-    m_window->PollEvents();
+    for (const auto& event : m_window->PollEvents())
+    {
+        core::EventsPoll::AddEvent(event);
+    }
 
     ImGui_ImplDX11_NewFrame();
     ImGui_ImplSDL2_NewFrame();

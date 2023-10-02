@@ -1,5 +1,5 @@
-#include <core/Random.hpp>
-#include <native/ImGUILayer.hpp>
+#include <ImGUILayer.hpp>
+#include <core/include/Random.hpp>
 
 #include <iostream>
 #include <algorithm>
@@ -23,6 +23,11 @@ namespace
     {
         ValueType tmp;
         int n = static_cast<int>(matrix.size());
+
+        if (n == 0)
+        {
+            return { };
+        }
 
         std::vector<ValueType> xx(n, 0.0);
 
@@ -206,8 +211,10 @@ void ImGUILayer::OnAttach()
 
 bool ImGUILayer::OnUpdate(ts delta)
 {
-    const auto& io = ImGui::GetIO();
-    m_window->PollEvents();
+    for (const auto& event : m_window->PollEvents())
+    {
+        core::EventsPoll::AddEvent(event);
+    }
 
     ImGui_ImplDX11_NewFrame();
     ImGui_ImplSDL2_NewFrame();
@@ -231,6 +238,8 @@ bool ImGUILayer::OnUpdate(ts delta)
     m_window->GetDirectXDeviceContext()->OMSetRenderTargets(1, &target_view, nullptr);
     m_window->GetDirectXDeviceContext()->ClearRenderTargetView(m_window->GetDirectXRenderTargetView(), clear_color_with_alpha);
     ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
+
+    const auto& io = ImGui::GetIO();
 
     // Update and Render additional Platform Windows
     if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable)
@@ -290,14 +299,15 @@ void ImGUILayer::Render()
     }
     DrawMatrix(matrix, "Matrix");
 
-    ImGui::DragInt("Threads count", &threads, 0, omp_get_max_threads());
+    ImGui::DragInt("Threads count", &threads, 0.05, 0, omp_get_max_threads());
     if (DrawButtonConditionally("Update threads count", test_thread.is_running() && threads > 0
             , threads > 0 ? "Better not to change this while test is running" : "Incorrect amount of threads"))
     {
         omp_set_num_threads(threads);
     }
 
-    if (DrawButtonConditionally("Run calculations", test_thread.is_running(), "Calculations are already running"))
+    if (DrawButtonConditionally("Run calculations", test_thread.is_running() || matrix.empty()
+                                , matrix.empty() ? "Matrix is empty" : "Calculations are already running"))
     {
         test_thread.run(
                 [=]()
