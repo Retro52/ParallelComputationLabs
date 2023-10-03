@@ -1,6 +1,7 @@
 #include <ImGUILayer.hpp>
 #include <core/include/Random.hpp>
 
+#include <numbers>
 #include <iostream>
 #include <algorithm>
 
@@ -16,119 +17,6 @@ using namespace retro;
 
 namespace
 {
-    using ValueType = double;
-    using MatrixType = std::vector<std::vector<ValueType>>;
-
-    std::vector<ValueType> Solve(MatrixType matrix)
-    {
-        ValueType tmp;
-        int n = static_cast<int>(matrix.size());
-
-        if (n == 0)
-        {
-            return { };
-        }
-
-        std::vector<ValueType> xx(n, 0.0);
-
-        for (int i = 0; i < n; i++)
-        {
-            tmp = matrix[i][i];
-            for (int j = n; j >= i; j--)
-            {
-                matrix[i][j] /= tmp;
-            }
-
-            int j;
-            int k;
-#pragma omp parallel for private (j, k, tmp)
-            for (j = i + 1; j < n; j++)
-            {
-                tmp = matrix[j][i];
-                for (k = n; k >= i; k--)
-                {
-                    matrix[j][k] -= tmp * matrix[i][k];
-                }
-            }
-        }
-
-        xx[n - 1] = matrix[n - 1][n];
-        for (int i = n - 2; i >= 0; i--)
-        {
-            int j;
-            xx[i] = matrix[i][n];
-
-#pragma omp for private (j)
-            for (j = i + 1; j < n; j++)
-            {
-                xx[i] -= matrix[i][j] * xx[j];
-            }
-        }
-
-        return xx;
-    }
-
-    void DrawMatrix(const MatrixType& matrix, const std::string& label)
-    {
-        constexpr size_t rows_max = 8;
-        constexpr size_t max_cols = 8;
-
-        if (!matrix.empty() && !matrix.at(0).empty())
-        {
-            ImGui::Text("%s", label.c_str());
-
-            if (ImGui::BeginTable(reinterpret_cast<const char *>(&matrix), static_cast<int>(std::min(matrix.at(0).size(), max_cols + 1)), ImGuiTableFlags_Borders | ImGuiTableFlags_SizingFixedSame | ImGuiTableFlags_NoHostExtendX))
-            {
-                size_t rows_count = matrix.size();
-                size_t cols_count = matrix.at(0).size();
-
-                for (size_t i = 0; i < rows_count; ++i)
-                {
-                    if (i < rows_max / 2 || i >= rows_count - (rows_max / 2) || rows_count <= rows_max)
-                    {
-                        ImGui::TableNextRow();
-
-                        for (size_t j = 0; j < cols_count; ++j)
-                        {
-                            if (j < max_cols / 2 || j >= cols_count - (max_cols / 2) || cols_count <= max_cols)
-                            {
-                                ImGui::TableNextColumn();
-                                ImGui::Text("%5.3lf", matrix.at(i).at(j));
-                            }
-                            else if (j == max_cols / 2)
-                            {
-                                ImGui::TableNextColumn();
-                                ImGui::Text("... (%zu)", matrix.at(0).size() - max_cols);
-                            }
-                        }
-                    }
-                    else if (i == rows_max / 2)
-                    {
-                        ImGui::TableNextRow();
-                        ImGui::TableNextColumn();
-                        ImGui::Text("... (%zu)", matrix.size() - rows_max);
-                        ImGui::TableSetColumnIndex(static_cast<int>(std::min(matrix.at(0).size(), max_cols + 1)) - 1);
-                    }
-                }
-                ImGui::EndTable();
-            }
-        }
-    }
-
-    void RandomizeMatrix(MatrixType& matrix)
-    {
-        retro::core::ScopeTimer _("Matrix randomize");
-        int i, j;
-#pragma omp parallel for private(i, j) shared(matrix)
-        for (i = 0; i < static_cast<decltype(i)>(matrix.size()); i++)
-        {
-            for (j = 0; j < static_cast<decltype(j)>(matrix.at(i).size()); j++)
-            {
-                matrix.at(i).at(j) = core::random::generate<MatrixType::value_type::value_type>(-100, 100);
-            }
-        }
-    }
-
     void DisplayBoolColored(const char* label, bool value)
     {
         ImVec4 color = value ? ImVec4(0.0f, 1.0f, 0.0f, 1.0f) : ImVec4(1.0f, 0.0f, 0.0f, 1.0f);
@@ -157,6 +45,61 @@ namespace
         {
             return ImGui::Button(label.c_str());
         }
+    }
+
+    template<typename T>
+    T linear(T min, T max, T value)
+    {
+        return ((value - min) / (max - min));
+    }
+
+    template<typename T, typename E, typename F, typename... Args>
+    void DrawColorLerp(T min, T max, T value, E&& easing, ImVec4 min_color, ImVec4 max_color, F&& func, Args&&... args)
+    {
+        ImVec4 color;
+
+        if (value > max)
+        {
+            color = max_color;
+        }
+        else if (value < min)
+        {
+            color = min_color;
+        }
+        else
+        {
+            auto t = static_cast<float>(easing(min, max, value));
+
+            color.x = min_color.x + t * (max_color.x - min_color.x);
+            color.y = min_color.y + t * (max_color.y - min_color.y);
+            color.z = min_color.z + t * (max_color.z - min_color.z);
+            color.w = 1.0;
+        }
+
+        ImGui::PushStyleColor(ImGuiCol_Text, color);
+        func(std::forward<Args>(args)...);
+        ImGui::PopStyleColor();
+    }
+
+    double ApproximatePi(const int samples)
+    {
+        int s;
+        int counter = 0;
+        constexpr double radius = 1.0;
+
+#pragma omp parallel for reduction(+:counter)
+        for (s = 0; s < samples; s++)
+        {
+            auto x = retro::core::random::generate(- radius, radius);
+            auto y = retro::core::random::generate(- radius, radius);
+
+            if ((x * x + y * y) < radius)
+            {
+                counter++;
+            }
+        }
+
+        return 4.0 * counter / samples;
     }
 }
 
@@ -279,50 +222,78 @@ void ImGUILayer::Render()
     static double execution_time = 0.0;
     static thread::winthread test_thread;
 
-    static int n = 5;
+    static int n = 500;
     static int threads = 4;
-    static MatrixType matrix;
-    static MatrixType result (1);
+    static double result = 0.0;
 
-    using HistoryEntry = std::pair<int, double>;
+    struct HistoryEntry
+    {
+        double exec_time = 0.0;
+        double deviation = 0.0;
+        double approx_result = 0.0;
+
+        int steps_count = 1;
+        int threads_count = 1;
+    };
+
     static std::vector<HistoryEntry> execution_time_history;
 
-    ImGui::Begin("Gauss method");
+    ImGui::Begin("PI approximation");
     start_time = omp_get_wtime();
 
-    ImGui::InputInt("Matrix size", &n);
-
-    if (DrawButtonConditionally("Randomize matrix", test_thread.is_running(), "Test is running"))
-    {
-        matrix = MatrixType (n, MatrixType::value_type(n + 1, 0));
-        RandomizeMatrix(matrix);
-    }
-    DrawMatrix(matrix, "Matrix");
-
-    ImGui::DragInt("Threads count", &threads, 0.05F, 0, omp_get_max_threads());
+    ImGui::InputInt("Samples count", &n);
+    ImGui::DragInt("Threads count", &threads, 0.05F, 1, omp_get_max_threads());
     if (DrawButtonConditionally("Update threads count", test_thread.is_running() && threads > 0
             , threads > 0 ? "Better not to change this while test is running" : "Incorrect amount of threads"))
     {
         omp_set_num_threads(threads);
     }
 
-    if (DrawButtonConditionally("Run calculations", test_thread.is_running() || matrix.empty()
-                                , matrix.empty() ? "Matrix is empty" : "Calculations are already running"))
+    if (DrawButtonConditionally("Run calculations", test_thread.is_running(), "Calculations are already running"))
     {
         test_thread.run(
                 [=]()
                 {
+                    HistoryEntry entry;
+
+                    entry.steps_count = n;
+                    entry.threads_count = threads;
+
                     execution_time = 0.0;
                     const auto execution_start = omp_get_wtime();
-                    result[0] = Solve(matrix);
+                    result = ApproximatePi(n);
                     execution_time = omp_get_wtime() - execution_start;
 
-                    execution_time_history.emplace_back(threads, execution_time);
+                    entry.approx_result = result;
+                    entry.exec_time = execution_time;
+                    entry.deviation = std::abs(result - std::numbers::pi);
+
+                    execution_time_history.emplace_back(entry);
                 });
     }
 
+    ImGui::Text("Perfect result: %lf", std::numbers::pi);
+    ImGui::Text("Approximation result: %lf", result);
 
-    DrawMatrix(result, "Result");
+    const auto deviation = std::abs(result - std::numbers::pi);
+
+    const ImVec4 bad_color = ImVec4(1.0f, 0.0f, 0.0f, 1.0f);
+    const ImVec4 good_color = ImVec4(0.0f, 1.0f, 0.0f, 1.0f);
+
+    constexpr auto eas_func = linear<double>;
+
+    constexpr auto bad_deviation = 0.1;
+    constexpr auto good_deviation = 0.0;
+
+    DrawColorLerp(good_deviation
+                  , bad_deviation
+                  , deviation
+                  , eas_func
+                  , good_color
+                  , bad_color
+                  , ImGui::Text
+                  , "Approx. deviation: %lf"
+                  , deviation);
 
     tick = omp_get_wtick();
     end_time = omp_get_wtime();
@@ -340,11 +311,15 @@ void ImGUILayer::Render()
 
     if (!execution_time_history.empty())
     {
-        if (ImGui::BeginTable("Execution Time Table", 2, ImGuiTableFlags_Sortable | ImGuiTableFlags_SizingFixedSame))
+        if (ImGui::BeginTable("Execution Time Table", 5, ImGuiTableFlags_Sortable | ImGuiTableFlags_SizingFixedSame))
         {
             // Table headers
-            ImGui::TableSetupColumn("Number of Threads", ImGuiTableColumnFlags_NoSort);
-            ImGui::TableSetupColumn("Execution Time (ms)", ImGuiTableColumnFlags_DefaultSort);
+            ImGui::TableSetupColumn("Execution time", ImGuiTableColumnFlags_DefaultSort);
+            ImGui::TableSetupColumn("Calculated PI", ImGuiTableColumnFlags_DefaultSort);
+            ImGui::TableSetupColumn("Approx. abs deviation", ImGuiTableColumnFlags_DefaultSort);
+            ImGui::TableSetupColumn("Threads count", ImGuiTableColumnFlags_NoSort);
+            ImGui::TableSetupColumn("Samples count", ImGuiTableColumnFlags_NoSort);
+
             ImGui::TableHeadersRow();
 
             // Sort our data if the user clicked on one of the headers
@@ -357,15 +332,37 @@ void ImGUILayer::Render()
                         for (int n = 0; n < sortsSpecs->SpecsCount; n++)
                         {
                             const ImGuiTableColumnSortSpecs* sortSpec = &sortsSpecs->Specs[n];
-                            if (sortSpec->ColumnIndex == 1) // Execution Time column
+                            if (sortSpec->ColumnIndex == 0) // Execution Time column
                             {
                                 if (sortSpec->SortDirection == ImGuiSortDirection_Ascending)
                                 {
-                                    return lhs.second < rhs.second;
+                                    return lhs.exec_time < rhs.exec_time;
                                 }
                                 else
                                 {
-                                    return lhs.second > rhs.second;
+                                    return lhs.exec_time > rhs.exec_time;
+                                }
+                            }
+                            if (sortSpec->ColumnIndex == 1) // Result column
+                            {
+                                if (sortSpec->SortDirection == ImGuiSortDirection_Ascending)
+                                {
+                                    return lhs.approx_result < rhs.approx_result;
+                                }
+                                else
+                                {
+                                    return lhs.approx_result > rhs.approx_result;
+                                }
+                            }
+                            if (sortSpec->ColumnIndex == 2) // Deviation column
+                            {
+                                if (sortSpec->SortDirection == ImGuiSortDirection_Ascending)
+                                {
+                                    return lhs.deviation < rhs.deviation;
+                                }
+                                else
+                                {
+                                    return lhs.deviation > rhs.deviation;
                                 }
                             }
                         }
@@ -380,11 +377,29 @@ void ImGUILayer::Render()
             for (const auto& entry : execution_time_history)
             {
                 ImGui::TableNextRow();
+
                 ImGui::TableSetColumnIndex(0);
-                ImGui::Text("%d", entry.first); // Number of threads
+                ImGui::Text("%.3f ms", entry.exec_time * 1000.0);
 
                 ImGui::TableSetColumnIndex(1);
-                ImGui::Text("%.2f ms", entry.second * 1000.0); // Execution time in milliseconds
+                ImGui::Text("%f", entry.approx_result);
+
+                ImGui::TableSetColumnIndex(2);
+                DrawColorLerp(good_deviation
+                        , bad_deviation
+                        , entry.deviation
+                        , eas_func
+                        , good_color
+                        , bad_color
+                        , ImGui::Text
+                        , "%lf"
+                        , entry.deviation);
+
+                ImGui::TableSetColumnIndex(3);
+                ImGui::Text("%d", entry.threads_count);
+
+                ImGui::TableSetColumnIndex(4);
+                ImGui::Text("%d", entry.steps_count);
             }
 
             ImGui::EndTable();
