@@ -1,7 +1,7 @@
 #include <ImGUILayer.hpp>
 #include <core/include/Random.hpp>
 
-#include <numbers>
+#include <mutex>
 #include <iostream>
 #include <algorithm>
 
@@ -47,39 +47,106 @@ namespace
         }
     }
 
-    template<typename T>
-    T linear(T min, T max, T value)
+    enum class CellState
     {
-        return ((value - min) / (max - min));
+        NONE,
+        WOLF,
+        RABBIT
+    };
+
+    std::string ToString(CellState state)
+    {
+        switch (state)
+        {
+            case CellState::NONE:
+                return "EMPTY";
+            case CellState::WOLF:
+                return "WOLF";
+            case CellState::RABBIT:
+                return "RABBIT";
+            default:
+                return "UNKNOWN";
+        }
     }
 
-    template<typename T, typename E, typename F, typename... Args>
-    void DrawColorLerp(T min, T max, T value, E&& easing, ImVec4 min_color, ImVec4 max_color, F&& func, Args&&... args)
+    void Simulate(std::vector<std::vector<CellState>>& grid)
     {
-        ImVec4 color;
+        std::vector<std::vector<CellState>> newGrid = grid;
 
-        if (value > max)
-        {
-            color = max_color;
-        }
-        else if (value < min)
-        {
-            color = min_color;
-        }
-        else
-        {
-            auto t = static_cast<float>(easing(min, max, value));
+        int dx[] = {-1, -1, -1, 0, 1, 1, 1, 0};
+        int dy[] = {-1, 0, 1, 1, 1, 0, -1, -1};
 
-            color.x = min_color.x + t * (max_color.x - min_color.x);
-            color.y = min_color.y + t * (max_color.y - min_color.y);
-            color.z = min_color.z + t * (max_color.z - min_color.z);
-            color.w = 1.0;
+        for (int i = 0; i < newGrid.size(); i++)
+        {
+            for (int j = 0; j < newGrid.at(i).size(); j++)
+            {
+                int rabbitsAround = 0;
+                int wolvesAround = 0;
+
+                for (int dir = 0; dir < 8; dir++)
+                {
+                    int ni = i + dx[dir];
+                    int nj = j + dy[dir];
+
+                    if (ni >= 0 && ni < newGrid.size() && nj >= 0 && nj < newGrid.at(ni).size())
+                    {
+                        if (newGrid.at(ni).at(nj) == CellState::RABBIT)
+                        {
+                            rabbitsAround++;
+                        }
+                        else if (newGrid.at(ni).at(nj) == CellState::WOLF)
+                        {
+                            wolvesAround++;
+                        }
+                    }
+                }
+
+                // Apply the rules
+                if (newGrid.at(i).at(j) == CellState::WOLF)
+                {
+                    if (rabbitsAround > 0)
+                    {
+                        // Wolf eats a rabbit
+                        newGrid.at(i).at(j) = CellState::WOLF;
+                    }
+                    else if (wolvesAround < 2 || wolvesAround > 3)
+                    {
+                        // Wolf dies due to loneliness or overcrowding
+                        newGrid.at(i).at(j) = CellState::NONE;
+                    }
+                }
+                else if (newGrid.at(i).at(j) == CellState::RABBIT)
+                {
+                    if (rabbitsAround < 2 || rabbitsAround > 4)
+                    {
+                        // Rabbit dies due to loneliness or overcrowding
+                        newGrid.at(i).at(j) = CellState::NONE;
+                    }
+                }
+                else
+                {
+                    // Empty cell
+                    if (rabbitsAround == 3)
+                    {
+                        // Cell becomes a rabbit
+                        newGrid.at(i).at(j) = CellState::RABBIT;
+                    }
+                    else if (wolvesAround == 3)
+                    {
+                        // Cell becomes a wolf
+                        newGrid.at(i).at(j) = CellState::WOLF;
+                    }
+                }
+            }
         }
 
-        ImGui::PushStyleColor(ImGuiCol_Text, color);
-        func(std::forward<Args>(args)...);
-        ImGui::PopStyleColor();
+        grid = newGrid;
     }
+
+    thread::winthread test_thread;
+
+    std::atomic<int> simulationDelayAtomic { 5 };
+    std::atomic<bool> isSimulationActiveAtomic { false };
 }
 
 void ImGUILayer::OnAttach()
@@ -186,113 +253,39 @@ bool ImGUILayer::OnEvent(const core::Event &event)
 
     if (event.type == SDL_QUIT)
     {
+        if (test_thread.is_running())
+        {
+            test_thread.terminate();
+        }
+
         return false;
     }
 
     return true;
 }
-
-enum class CellState
-{
-    NONE,
-    WOLF,
-    RABBIT
-};
-
-void Simulate(auto& grid)
-{
-    std::vector<std::vector<CellState>> newGrid = grid;
-
-    int dx[] = {-1, -1, -1, 0, 1, 1, 1, 0};
-    int dy[] = {-1, 0, 1, 1, 1, 0, -1, -1};
-
-    for (int i = 0; i < newGrid.size(); i++)
-    {
-        for (int j = 0; j < newGrid.at(i).size(); j++)
-        {
-            int rabbitsAround = 0;
-            int wolvesAround = 0;
-
-            for (int dir = 0; dir < 8; dir++)
-            {
-                int ni = i + dx[dir];
-                int nj = j + dy[dir];
-
-                if (ni >= 0 && ni < newGrid.at(i).size() && nj >= 0 && nj < newGrid.at(i).size())
-                {
-                    if (grid.at(ni).at(nj) == CellState::RABBIT)
-                    {
-                        rabbitsAround++;
-                    }
-                    else if (grid.at(ni).at(nj) == CellState::WOLF)
-                    {
-                        wolvesAround++;
-                    }
-                }
-            }
-
-            // Apply the rules
-            if (grid.at(i).at(j) == CellState::WOLF)
-            {
-                if (rabbitsAround > 0)
-                {
-                    // Wolf eats a rabbit
-                    newGrid.at(i).at(j) = CellState::WOLF;
-                }
-                else if (wolvesAround < 2 || wolvesAround > 3)
-                {
-                    // Wolf dies due to loneliness or overcrowding
-                    newGrid.at(i).at(j) = CellState::NONE;
-                }
-            }
-            else if (grid.at(i).at(j) == CellState::RABBIT)
-            {
-                if (rabbitsAround < 2 || rabbitsAround > 4)
-                {
-                    // Rabbit dies due to loneliness or overcrowding
-                    newGrid.at(i).at(j) = CellState::NONE;
-                }
-            }
-            else
-            {
-                // Empty cell
-                if (rabbitsAround == 3)
-                {
-                    // Cell becomes a rabbit
-                    newGrid.at(i).at(j) = CellState::RABBIT;
-                }
-                else if (wolvesAround == 3)
-                {
-                    // Cell becomes a wolf
-                    newGrid.at(i).at(j) = CellState::WOLF;
-                }
-            }
-        }
-    }
-
-    grid = newGrid;
-}
-
 void ImGUILayer::Render()
 {
+    double tick;
+    double end_time;
+    double start_time;
+
     static int gridSize = 20;
 
     static std::unordered_map<CellState, ImVec4> cell_colors =
-        {
-                { CellState::NONE, ImVec4(0.0f, 0.0f, 0.0f, 1.0f)},
-                { CellState::WOLF, ImVec4(0.49f, 0.49f, 0.49f, 1.0f)},
-                { CellState::RABBIT, ImVec4(1.0f, 0.0f, 1.0f, 1.0f)}
-        };
+            {
+                    { CellState::NONE, ImVec4(0.0f, 0.0f, 0.0f, 1.0f)},
+                    { CellState::WOLF, ImVec4(0.49f, 0.49f, 0.49f, 1.0f)},
+                    { CellState::RABBIT, ImVec4(1.0f, 0.0f, 1.0f, 1.0f)}
+            };
 
     static int brushSize = 1;
     static CellState currentBrush = CellState::WOLF;
     static std::vector<std::vector<CellState>> grid;
 
-    static thread::winthread test_thread;
-
     ImGui::Begin("Wolf v Rabbit");
+    start_time = omp_get_wtime();
 
-    ImGui::SliderInt("Brush Size", &brushSize, 1, 5);
+    ImGui::SliderInt("Brush Size", &brushSize, 1, 20);
 
     CellState newBrush = currentBrush;
     if (currentBrush == CellState::NONE)
@@ -354,88 +347,128 @@ void ImGUILayer::Render()
         }
     }
 
-    constexpr float cell_spacing = 1.0F;
-    const auto sx = (ImGui::GetContentRegionAvail().x / static_cast<float>(gridSize)) - cell_spacing;
-    const auto sy = (ImGui::GetContentRegionAvail().y / static_cast<float>(gridSize)) - cell_spacing;
+    float cell_spacing = gridSize < 200 ? 1.0F : 0.0F;
+
+    const auto sx = (ImGui::GetContentRegionAvail().x * 0.75F / static_cast<float>(gridSize)) - cell_spacing;
+    const auto sy = (ImGui::GetContentRegionAvail().y * 0.75F / static_cast<float>(gridSize)) - cell_spacing;
 
     float cell_size = std::min(sx, sy);
+
     float total_cell_size = cell_size + cell_spacing;
 
-    ImGui::Text("PropSize: %f %f %f", sx, sy, cell_size);
-    ImGui::Text("RegAvail: %f %f", ImGui::GetContentRegionAvail().x, ImGui::GetContentRegionAvail().y);
+    int simulationDelay = simulationDelayAtomic.load();
+    ImGui::DragInt("Grid size: ", &gridSize, 0.05F, 1);
+    if (DrawButtonConditionally("100x100", gridSize == 100, "Already the selected size"))
+    {
+        gridSize = 100;
+    }
+    ImGui::SameLine();
 
-    ImGui::DragInt("Grid size: ", &gridSize, 0.05F, 1, 100);
+    if (DrawButtonConditionally("200x200", gridSize == 200, "Already the selected size"))
+    {
+        gridSize = 200;
+    }
+    ImGui::SameLine();
+
+    if (DrawButtonConditionally("400x400", gridSize == 400, "Already the selected size"))
+    {
+        gridSize = 400;
+    }
+    ImGui::SameLine();
+
+    if (DrawButtonConditionally("800x800", gridSize == 800, "Already the selected size"))
+    {
+        gridSize = 800;
+    }
+
+    ImGui::DragInt("Simulation delay: ", &simulationDelay, 0.05F, 1);
+
+    simulationDelayAtomic = std::max(simulationDelay, 0);
 
     ImVec2 mousePos = ImGui::GetMousePos();
     bool isMouseDown = ImGui::IsMouseDown(0);
-    ImVec2 cursorStart = ImGui::GetCursorScreenPos();
-
-    ImVec2 originalSpacing = ImGui::GetStyle().ItemSpacing;
-    ImGui::GetStyle().ItemSpacing = ImVec2(2.0f, 2.0f);
 
     ImVec2 grid_window_size;
-    grid_window_size.x = grid_window_size.y = total_cell_size * gridSize;
 
-    static bool stop_simulation = false;
+    grid_window_size.x = ImGui::GetContentRegionMax().x;
+    grid_window_size.y = total_cell_size * static_cast<float>(gridSize);
 
-    if (test_thread.is_running() && ImGui::Button("Stop"))
-    {
-        stop_simulation = true;
-    }
     if (ImGui::Button("Simulate"))
     {
-        stop_simulation = false;
+        isSimulationActiveAtomic = true;
         test_thread.run(
-            [=]()
-            {
-                while(!stop_simulation)
+                [=]()
                 {
-                    Simulate(grid);
+                    while(isSimulationActiveAtomic.load())
+                    {
+                        Simulate(grid);
 
-                    std::this_thread::sleep_for(std::chrono::milliseconds(5));
-                }
-            });
+                        if (simulationDelayAtomic.load() > 0)
+                        {
+                            std::this_thread::sleep_for(std::chrono::milliseconds(simulationDelayAtomic.load()));
+                        }
+                    }
+                });
     }
+
+    ImGui::SameLine();
+    if (DrawButtonConditionally("Stop", !test_thread.is_running(), "Simulation was not started"))
+    {
+        isSimulationActiveAtomic = false;
+    }
+
+    float totalGridWidth = total_cell_size * static_cast<float>(gridSize);
+    float remainingWidth = ImGui::GetContentRegionAvail().x - totalGridWidth;
 
     ImGui::BeginChild("GridChild", grid_window_size, false, ImGuiWindowFlags_HorizontalScrollbar);
 
-    if (grid.size() < gridSize)
+    ImVec2 cursorStart = ImGui::GetCursorScreenPos();
+    cursorStart.x += remainingWidth * 0.5F;
+
+    if (grid.size() != gridSize)
     {
         grid.resize(gridSize);
     }
 
-    for (int i = 0; i < gridSize; i++)
-    {
-        if (grid.at(i).size() < gridSize)
-        {
-            grid.at(i).resize(gridSize);
-        }
-        for (int j = 0; j < gridSize; j++)
-        {
-            ImVec2 cellMin = ImVec2(cursorStart.x + j * total_cell_size, cursorStart.y + i * total_cell_size);
-            ImVec2 cellMax = ImVec2(cellMin.x + cell_size, cellMin.y + cell_size);
+    const float brushSizeAdjustment = cell_size * static_cast<float>(brushSize - 1);
 
-            bool isInsideBrush =
-                    mousePos.x >= (cellMin.x - cell_size * (brushSize - 1)) &&
-                    mousePos.x <= (cellMax.x + cell_size * (brushSize - 1)) &&
-                    mousePos.y >= (cellMin.y - cell_size * (brushSize - 1)) &&
-                    mousePos.y <= (cellMax.y + cell_size * (brushSize - 1));
+    for (int i = 0; i < grid.size(); i++)
+    {
+        std::vector<CellState>& row = grid.at(i);
+
+        if (row.size() != gridSize)
+        {
+            row.resize(gridSize);
+        }
+
+        for (int j = 0; j < row.size(); j++)
+        {
+            const ImVec2 cellMin(cursorStart.x + j * total_cell_size, cursorStart.y + i * total_cell_size);
+            const ImVec2 cellMax(cellMin.x + cell_size, cellMin.y + cell_size);
+
+            const bool isInsideBrush =
+                    mousePos.x >= (cellMin.x - brushSizeAdjustment) &&
+                    mousePos.x <= (cellMax.x + brushSizeAdjustment) &&
+                    mousePos.y >= (cellMin.y - brushSizeAdjustment) &&
+                    mousePos.y <= (cellMax.y + brushSizeAdjustment);
 
             if (isMouseDown && ImGui::IsItemActive() && isInsideBrush)
             {
-                grid.at(i).at(j) = currentBrush;
+                row.at(j) = currentBrush;
             }
-            CellState cellState = grid.at(i).at(j);
 
             ImVec4 color;
-            if (cell_colors.find(cellState) == cell_colors.end())
+            const CellState cellState = row.at(j);
+
+            auto it = cell_colors.find(cellState);
+            if (it == cell_colors.end())
             {
                 std::cerr << "Unexpected cell state value: " << static_cast<int>(cellState) << std::endl;
                 color = ImVec4(1.0f, 1.0f, 1.0f, 1.0f);
             }
             else
             {
-                color = cell_colors.at(cellState);
+                color = it->second;
             }
 
             ImGui::GetWindowDrawList()->AddRectFilled(cellMin, cellMax, ImGui::ColorConvertFloat4ToU32(color));
@@ -444,7 +477,11 @@ void ImGUILayer::Render()
 
     ImGui::EndChild();
 
-    ImGui::GetStyle().ItemSpacing = originalSpacing;
+    tick = omp_get_wtick();
+    end_time = omp_get_wtime();
+
+    ImGui::Text("Timer precision %lf\n", tick);
+    ImGui::Text("Render time (including operations), in ms %lf\n", (end_time - start_time) * 1000.0);
 
     ImGui::End();
 }
