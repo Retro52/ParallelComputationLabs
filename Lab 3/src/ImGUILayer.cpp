@@ -236,22 +236,30 @@ void ImGUILayer::Render()
     ImGui::InputDouble("Integration segment, a: ", &a, 0.5);
     ImGui::InputDouble("Integration segment, b: ", &b, 0.5);
 
+    static int threads = 4;
+    ImGui::DragInt("Threads count", &threads, 0.05F, 0, omp_get_max_threads());
+    if (DrawButtonConditionally("Update threads count", test_thread.is_running() && threads > 0
+            , threads > 0 ? "Better not to change this while test is running" : "Incorrect amount of threads"))
+    {
+        omp_set_num_threads(threads);
+    }
+
     if(DrawButtonConditionally("Run calculations", test_thread.is_running(), "Calculations are already running"))
     {
         test_thread.run(
-                [=]()
-                {
-                    execution_time_parallel = 0.0;
-                    execution_time_non_parallel = 0.0;
+            [=]()
+            {
+                execution_time_parallel = 0.0;
+                execution_time_non_parallel = 0.0;
 
-                    const auto parallel_start = omp_get_wtime();
-                    result_parallel = IntegrateParallel(Func, a, b, num_of_steps);
-                    execution_time_parallel = omp_get_wtime() - parallel_start;
+                const auto parallel_start = omp_get_wtime();
+                result_parallel = IntegrateParallel(Func, a, b, num_of_steps);
+                execution_time_parallel = omp_get_wtime() - parallel_start;
 
-                    const auto non_parallel_start = omp_get_wtime();
-                    result_non_parallel = IntegrateNonParallel(Func, a, b, num_of_steps);
-                    execution_time_non_parallel = omp_get_wtime() - non_parallel_start;
-                });
+                const auto non_parallel_start = omp_get_wtime();
+                result_non_parallel = IntegrateNonParallel(Func, a, b, num_of_steps);
+                execution_time_non_parallel = omp_get_wtime() - non_parallel_start;
+            });
     }
 
     ImGui::Text("Integration result parallel: %lf", result_parallel);

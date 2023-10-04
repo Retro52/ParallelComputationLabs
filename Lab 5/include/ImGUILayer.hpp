@@ -2,7 +2,7 @@
 
 #include <core/include/Layer.hpp>
 #include <core/include/Timer.hpp>
-#include <graphics/include/Window.hpp>
+#include <core/include/Window.hpp>
 
 #include <memory>
 #include <wrappers/include/winmutex.hpp>
