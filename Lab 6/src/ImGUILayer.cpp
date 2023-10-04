@@ -76,6 +76,7 @@ namespace
         int dx[] = {-1, -1, -1, 0, 1, 1, 1, 0};
         int dy[] = {-1, 0, 1, 1, 1, 0, -1, -1};
 
+#pragma omp parallel for shared(newGrid, dx, dy)
         for (int i = 0; i < newGrid.size(); i++)
         {
             for (int j = 0; j < newGrid.at(i).size(); j++)
@@ -143,10 +144,24 @@ namespace
         grid = newGrid;
     }
 
+    mutex::winmutex grid_sync;
     thread::winthread test_thread;
 
+    std::vector<std::vector<CellState>> grid;
+    std::vector<std::vector<CellState>> test_thread_grid;
+
     std::atomic<int> simulationDelayAtomic { 5 };
+    std::atomic<double> simulationExecutionTime { 0.0 };
+
+    std::atomic<bool> isTestGridDirty { false };
     std::atomic<bool> isSimulationActiveAtomic { false };
+
+    void UpdateMainThreadGrid(const std::vector<std::vector<CellState>>& updated)
+    {
+        grid_sync.lock();
+        grid = updated;
+        grid_sync.unlock();
+    }
 }
 
 void ImGUILayer::OnAttach()
@@ -269,6 +284,7 @@ void ImGUILayer::Render()
     double end_time;
     double start_time;
 
+    static int threads = 4;
     static int gridSize = 20;
 
     static std::unordered_map<CellState, ImVec4> cell_colors =
@@ -280,10 +296,16 @@ void ImGUILayer::Render()
 
     static int brushSize = 1;
     static CellState currentBrush = CellState::WOLF;
-    static std::vector<std::vector<CellState>> grid;
 
     ImGui::Begin("Wolf v Rabbit");
     start_time = omp_get_wtime();
+
+    ImGui::DragInt("Threads count", &threads, 0.05F, 1, omp_get_max_threads());
+    if (DrawButtonConditionally("Update threads count", test_thread.is_running() && threads > 0
+            , threads > 0 ? "Better not to change this while test is running" : "Incorrect amount of threads"))
+    {
+        omp_set_num_threads(threads);
+    }
 
     ImGui::SliderInt("Brush Size", &brushSize, 1, 20);
 
@@ -397,18 +419,37 @@ void ImGUILayer::Render()
     {
         isSimulationActiveAtomic = true;
         test_thread.run(
-                [=]()
+            [=]()
+            {
+                while(isSimulationActiveAtomic.load())
                 {
-                    while(isSimulationActiveAtomic.load())
-                    {
-                        Simulate(grid);
+                    static auto local_grid = grid;
 
-                        if (simulationDelayAtomic.load() > 0)
-                        {
-                            std::this_thread::sleep_for(std::chrono::milliseconds(simulationDelayAtomic.load()));
-                        }
+                    if (isTestGridDirty.load())
+                    {
+                        grid_sync.lock();
+
+                        local_grid = grid;
+                        isTestGridDirty = false;
+
+                        grid_sync.unlock();
                     }
-                });
+
+                    const auto start_time = omp_get_wtime();
+                    Simulate(local_grid);
+                    simulationExecutionTime = omp_get_wtime() - start_time;
+
+                    if (simulationDelayAtomic.load() > 0)
+                    {
+                        std::this_thread::sleep_for(std::chrono::milliseconds(simulationDelayAtomic.load()));
+                    }
+
+                     if (!isTestGridDirty.load())
+                     {
+                         UpdateMainThreadGrid(local_grid);
+                     }
+                }
+            });
     }
 
     ImGui::SameLine();
@@ -427,6 +468,7 @@ void ImGUILayer::Render()
 
     if (grid.size() != gridSize)
     {
+        isTestGridDirty = true;
         grid.resize(gridSize);
     }
 
@@ -438,6 +480,7 @@ void ImGUILayer::Render()
 
         if (row.size() != gridSize)
         {
+            isTestGridDirty = true;
             row.resize(gridSize);
         }
 
@@ -454,6 +497,7 @@ void ImGUILayer::Render()
 
             if (isMouseDown && ImGui::IsItemActive() && isInsideBrush)
             {
+                isTestGridDirty = true;
                 row.at(j) = currentBrush;
             }
 
@@ -480,7 +524,10 @@ void ImGUILayer::Render()
     tick = omp_get_wtick();
     end_time = omp_get_wtime();
 
+    DisplayBoolColored("Is simulation thread running", test_thread.is_running());
+
     ImGui::Text("Timer precision %lf\n", tick);
+    ImGui::Text("Per-Cycle simulation time, in ms %lf\n", simulationExecutionTime.load() * 1000.0);
     ImGui::Text("Render time (including operations), in ms %lf\n", (end_time - start_time) * 1000.0);
 
     ImGui::End();

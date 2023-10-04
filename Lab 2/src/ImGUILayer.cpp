@@ -248,6 +248,14 @@ void RenderMultiplicationWindow()
     start_time = omp_get_wtime();
     ImGui::Begin("Matrix multiplication");
 
+    static int threads = 4;
+    ImGui::DragInt("Threads count", &threads, 0.05F, 0, omp_get_max_threads());
+    if (DrawButtonConditionally("Update threads count", test_thread.is_running() && threads > 0
+            , threads > 0 ? "Better not to change this while test is running" : "Incorrect amount of threads"))
+    {
+        omp_set_num_threads(threads);
+    }
+
     // Input for Matrix A size
     ImGui::InputInt("Matrix A Rows", &rows_a);
     ImGui::InputInt("Matrix A Columns", &cols_a);
