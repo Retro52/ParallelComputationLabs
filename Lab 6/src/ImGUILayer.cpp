@@ -73,8 +73,8 @@ namespace
     {
         std::vector<std::vector<CellState>> newGrid = grid;
 
-        int dx[] = {-1, -1, -1, 0, 1, 1, 1, 0};
-        int dy[] = {-1, 0, 1, 1, 1, 0, -1, -1};
+        int dx[] = {-1, -1, -1, 0, 1, 1,  1,  0};
+        int dy[] = {-1,  0,  1, 1, 1, 0, -1, -1};
 
 #pragma omp parallel for shared(newGrid, dx, dy)
         for (int i = 0; i < newGrid.size(); i++)
@@ -107,8 +107,21 @@ namespace
                 {
                     if (rabbitsAround > 0)
                     {
-                        // Wolf eats a rabbit
-                        newGrid.at(i).at(j) = CellState::WOLF;
+                        for (int dir = 0; dir < 8; dir++)
+                        {
+                            int ni = i + dx[dir];
+                            int nj = j + dy[dir];
+
+                            if (ni >= 0 && ni < newGrid.size() && nj >= 0 && nj < newGrid.at(ni).size())
+                            {
+                                if (newGrid.at(ni).at(nj) == CellState::RABBIT)
+                                {
+                                    // Wolf eats a rabbit
+                                    newGrid.at(ni).at(nj) = CellState::NONE;
+                                    break;
+                                }
+                            }
+                        }
                     }
                     else if (wolvesAround < 2 || wolvesAround > 3)
                     {
